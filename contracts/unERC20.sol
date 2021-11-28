@@ -5,8 +5,17 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract UNERC20 is ERC20Upgradeable, AccessControlUpgradeable {
+// refer https://forum.openzeppelin.com/t/uups-proxies-tutorial-solidity-javascript/7786
+
+contract UNERC20 is
+    ERC20Upgradeable,
+    AccessControlUpgradeable,
+    UUPSUpgradeable,
+    OwnableUpgradeable
+{
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -19,6 +28,7 @@ contract UNERC20 is ERC20Upgradeable, AccessControlUpgradeable {
 
     // to store the address of token
     IERC20 public Coin;
+    address public tokenAddress;
     address private factoryContract;
     uint256 private totalLiquidity;
     uint256 private usedLiquidity;
@@ -27,17 +37,20 @@ contract UNERC20 is ERC20Upgradeable, AccessControlUpgradeable {
     mapping(address => BorrowerDetails) borrowersMapping;
 
     function initialize(
-        IERC20 _tokenAddress,
+        address _tokenAddress,
         string calldata name,
         string calldata symbol,
         address admin
-    ) public initializer {
+    ) external initializer {
         __ERC20_init(name, symbol);
-        Coin = _tokenAddress;
+        tokenAddress = _tokenAddress;
+        Coin = IERC20(_tokenAddress);
         factoryContract = msg.sender;
         _setupRole(MULTISIGADMIN, admin);
         _setupRole(MULTISIGADMIN, msg.sender);
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     /* the LenderLoan contract takes permission to spend a particular ERC20 on behalf of the liquidity provider. 
     It sends those token to this smart contract. 
@@ -45,7 +58,7 @@ contract UNERC20 is ERC20Upgradeable, AccessControlUpgradeable {
     */
 
     function increaseSupply(uint256 amount, address supplier)
-        public
+        external
         onlyRole(MULTISIGADMIN)
     {
         liquidityMapping[supplier] += amount;
@@ -53,7 +66,7 @@ contract UNERC20 is ERC20Upgradeable, AccessControlUpgradeable {
     }
 
     function decreaseSupply(uint256 amount, address sender)
-        public
+        external
         onlyRole(MULTISIGADMIN)
     {
         uint256 availaibleSupply = getAvailaibleSupply();
@@ -75,7 +88,7 @@ contract UNERC20 is ERC20Upgradeable, AccessControlUpgradeable {
         address borrower,
         uint256 numberOfDays,
         uint256 amount
-    ) public onlyRole(MULTISIGADMIN) {
+    ) external onlyRole(MULTISIGADMIN) {
         require(amount <= getAvailaibleSupply(), "not enough liquidity");
         usedLiquidity = usedLiquidity.add(amount);
         addBorrower(borrower, block.timestamp + numberOfDays * 1 days, amount);
@@ -84,16 +97,19 @@ contract UNERC20 is ERC20Upgradeable, AccessControlUpgradeable {
 
     event LiquidityChange(address sender, uint256 amount);
 
-    function paybackLoan(uint256 amount) public onlyRole(MULTISIGADMIN) {
+    function paybackLoan(uint256 amount, address account)
+        external
+        onlyRole(MULTISIGADMIN)
+    {
         require(
-            amount <= borrowersMapping[msg.sender].amount,
+            amount <= borrowersMapping[account].amount,
             "you weren't given this much liquidity. Please repay your own loan only"
         );
 
-        borrowersMapping[msg.sender].amount -= amount;
-        emit LiquidityChange(msg.sender, amount);
+        borrowersMapping[account].amount -= amount;
+        emit LiquidityChange(account, amount);
         usedLiquidity = usedLiquidity.sub(amount, "amount issue");
-        _burn(msg.sender, amount);
+        _burn(account, amount);
     }
 
     function getAvailaibleSupply() public view returns (uint256) {
@@ -104,7 +120,7 @@ contract UNERC20 is ERC20Upgradeable, AccessControlUpgradeable {
         return usedLiquidity;
     }
 
-    function balanceSupply() public {
+    function balanceSupply() external {
         uint256 callerProfit = 0;
         address iterator;
 
@@ -186,5 +202,9 @@ contract UNERC20 is ERC20Upgradeable, AccessControlUpgradeable {
         returns (address[] memory)
     {
         return balanceSupplyCallPending;
+    }
+
+    function getTokenAddress() public view returns (IERC20) {
+        return Coin;
     }
 }

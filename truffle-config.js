@@ -9,7 +9,7 @@ module.exports = {
     development: {
       host: "127.0.0.1", // Localhost (default: none)
       port: 7545, // Custom port
-      network_id: 5777, // Custom network
+      network_id: "*", // Custom network
       // gas: 8500000,           // Gas sent with each transaction (default: ~6700000)
       // gasPrice: 20000000000,  // 20 gwei (in wei) (default: 100 gwei)
       // from: <address>,        // Account to send txs from (default: accounts[0])
@@ -37,9 +37,12 @@ module.exports = {
 
   // Set default mocha options here, use special reporters etc.
   mocha: {
-    // timeout: 100000
+    reporter: "eth-gas-reporter",
+    reporterOptions: {
+      excludeContracts: ["Migrations"],
+    },
   },
-
+  plugins: ["solidity-coverage"],
   // Configure your compilers
   compilers: {
     solc: {
