@@ -103,6 +103,14 @@ contract LendersFactory is ILendersFactory {
         liquidityContract.paybackLoan(amount, msg.sender);
     }
 
+    function balanceSupply(IERC20 token) external returns (uint256) {
+        IUNERC20 liquidityContract = IUNERC20(getContractAddress(token));
+
+        uint256 reward = liquidityContract.balanceSupply();
+        // replace with payment to the caller later on
+        return reward;
+    }
+
     function payInterest(uint256 amount) public payable {
         uint256 interest = calculateInterestAmount(amount);
         require(
@@ -114,15 +122,15 @@ contract LendersFactory is ILendersFactory {
 
     function calculateInterestAmount(uint256 amount)
         public
-        view
+        pure
         returns (uint256)
     {
-        return payInterest().mul(amount).div(100);
+        return interestPercentage().mul(amount).div(100);
     }
 
-    function payInterest() public view returns (uint256) {
+    function interestPercentage() public pure returns (uint256) {
         // think of an algo based on liquidity available vs loan taken
-        return 10;
+        return 1;
     }
 
     function returnProxyContract(IERC20 tokenAddress)
